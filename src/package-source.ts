@@ -1,6 +1,8 @@
 import fetch from 'npm-registry-fetch'
 import { compare } from 'semver'
 import type { IPackageVersionInfo } from './versioning'
+import { loadNpmConfig } from './npm-config'
+import type { NpmConfig } from './npm-config'
 
 /**
  * Fetches info about a package.
@@ -26,14 +28,29 @@ export interface IPackageInfo {
 
 /**
  * Creates a package source.
+ *
+ * By default, `npm-registry-fetch` opts are loaded from `.npmrc` files and
+ * `npm_config_*` env vars via `loadNpmConfig()`, so the configured registry,
+ * auth tokens, CA bundles, proxies and scoped registries are honored. Pass a
+ * custom `configLoader` (e.g. from tests) to override.
  */
-export function createPackageSource(): IPackageSource {
+export function createPackageSource(
+  configLoader: () => Promise<NpmConfig> = async () => await loadNpmConfig(),
+): IPackageSource {
+  let cachedOpts: NpmConfig | undefined
+  const getOpts = async (): Promise<NpmConfig> => {
+    if (cachedOpts) return cachedOpts
+    cachedOpts = await configLoader()
+    return cachedOpts
+  }
+
   return {
     /**
      * Fetches info about a package, or `null` if not found.
      */
     fetch: async (name) => {
-      const response = await fetch(encodeURI(name)).catch((err) => {
+      const opts = await getOpts()
+      const response = await fetch(encodeURI(name), opts).catch((err) => {
         if (err.statusCode === 404) {
           return null
           /* v8 ignore next */
