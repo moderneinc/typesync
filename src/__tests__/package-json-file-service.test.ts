@@ -10,7 +10,7 @@ describe('package json file service', () => {
   describe('readPackageFile', () => {
     it('reads the package JSON file from the cwd', async ({ expect }) => {
       const result = await subject.readPackageFile('package.json')
-      expect(result.name).toBe('typesync')
+      expect(result.name).toBe('@openrewrite/typesync')
     })
 
     it('throws when file does not exist', async ({ expect }) => {
