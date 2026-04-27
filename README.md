@@ -1,141 +1,51 @@
-# TypeSync
+# @openrewrite/typesync
 
-Install missing TypeScript typings for dependencies in your `package.json`.
+A fork of [jeffijoe/typesync](https://github.com/jeffijoe/typesync), published to npm as [`@openrewrite/typesync`](https://www.npmjs.com/package/@openrewrite/typesync).
 
-[![npm](https://img.shields.io/npm/v/typesync.svg?maxAge=1000)](https://www.npmjs.com/package/typesync)
-[![Build Status](https://github.com/jeffijoe/typesync/workflows/ci.yml/badge.svg?branch=master)](https://github.com/jeffijoe/typesync/actions)
-[![Coveralls](https://img.shields.io/coveralls/jeffijoe/typesync.svg?maxAge=1000)](https://coveralls.io/github/jeffijoe/typesync)
-[![npm](https://img.shields.io/npm/dt/typesync.svg?maxAge=1000)](https://www.npmjs.com/package/typesync)
-[![license](https://img.shields.io/npm/l/typesync.svg?maxAge=1000)](https://github.com/jeffijoe/typesync/blob/master/LICENSE.md)
-[![node](https://img.shields.io/node/v/typesync.svg?maxAge=1000)](https://www.npmjs.com/package/typesync)
+For usage and documentation, see the upstream project.
 
-![TypeSync](/typesync.gif)
+## Releasing
 
-## Install
+Releases are published to npm **locally**, not from CI. You need:
+
+- npm account that is a member of the `@openrewrite` org with publish rights
+- `npm login` completed in your shell (run `npm whoami` to verify)
+- A clean working tree on `master`, up to date with `origin/master`
+
+### Versioning
+
+Use **fork-style versions** of the form `X.Y.Z-moderne.N`, where `X.Y.Z` tracks the upstream `jeffijoe/typesync` release this fork is based on, and `N` is incremented for each release of the Moderne fork on top of that upstream version. Example progression:
+
+```
+0.14.3-moderne.0   <- initial fork of upstream 0.14.3
+0.14.3-moderne.1   <- next Moderne release, still on upstream 0.14.3
+0.14.3-moderne.2
+...
+0.15.0-moderne.0   <- after rebasing onto upstream 0.15.0
+```
+
+This keeps it unambiguous which upstream version is shipped and which Moderne iteration is on top, and avoids ever colliding with an upstream `X.Y.Z` tag.
+
+Run from the repo root:
 
 ```sh
-npm install -g typesync
+npm run release:prerelease   # 0.14.3-moderne.0 -> 0.14.3-moderne.1  (preferred default)
 ```
 
-You can also use it directly with `npx` which will install it for you:
+Use `release:patch` / `release:minor` only when rebasing onto a new upstream version — bump the base version manually first (e.g. edit `package.json` to `0.15.0-moderne.0`), or run `npm version <new>` directly, rather than relying on `release:patch`/`release:minor` (which strip the `-moderne.N` suffix).
 
-```sh
-npx typesync
-```
+Each script will:
 
-## Usage
+1. Run `npm version <type>` — bumps `package.json` / `package-lock.json`, commits, and creates an annotated `vX.Y.Z-moderne.N` git tag.
+2. Run `npm run do:publish` — lints, tests, builds, then `npm publish` (uses `publishConfig.access: public` from `package.json`).
+3. Run `git push --follow-tags` — pushes the commit and the new tag to `origin`.
 
-```sh
-typesync [path/to/package.json] [--dry]
-```
+### Verify
 
-Path is relative to the current working directory. If omitted, defaults to `package.json`.
+- `npmjs.com/package/@openrewrite/typesync` shows the new version
+- Smoke test: `npx @openrewrite/typesync@<version> --dry`
 
-**Note**: TypeSync only modifies your `package.json` - you still need to run an installer.
+### Recovery
 
-### `--dry[=fail]`
-
-If `--dry` is specified, will not actually write to the file, it only prints added/removed typings.
-
-The same is true for `--dry=fail`, with the additional effect of failing the command in case there are changes.
-This is useful for CI scenarios.
-
-### `--ignoredeps`
-
-To ignore certain sections, you can use the `--ignoredeps=` flag. For example, to ignore `devDependencies`, use `--ignoredeps=dev`. To ignore multiple, comma-separate them, like this: `--ignoredeps=deps,peer` (ignores `dependencies` and `peerDependencies`).
-
-- `--ignoredeps=deps` — ignores `dependencies`
-- `--ignoredeps=dev` — ignores `devDependencies`
-- `--ignoredeps=peer` — ignores `peerDependencies`
-- `--ignoredeps=optional` — ignores `optionalDependencies`
-
-### `--ignorepackages`
-
-To ignore certain packages, you can use the `--ignorepackages=` flag. For example, to ignore `nodemon`, use `--ignorepackages=nodemon`.
-To ignore multiple, comma-separate them, like this: `--ignorepackages=nodemon,whatever` (ignores `nodemon` and `whatever`).
-
-### Using a config file
-
-Alternatively, you can use a TypeSync config file: `.typesyncrc` or a `"typesync"` section in your `package.json`. TypeSync will **automatically** search for configuration files. See [cosmiconfig][cosmiconfig] for details.
-
-```json
-// .typesyncrc
-{
-  "ignoreDeps": ["dev"],
-  "ignorePackages": ["nodemon"]
-}
-```
-
-### Run TypeSync automatically after every install
-
-To run TypeSync and install packages automatically after every package install, create a file called `install-with-types.sh` with the following content:
-
-```sh
-npm install $1
-npx typesync
-npm install
-```
-
-If you use `yarn`, use this instead:
-
-```sh
-yarn add $1
-yarn typesync
-yarn
-```
-
-Run this command to make the file executable:
-
-```sh
-chmod +x install-with-types.sh
-```
-
-Add the following to `package.json`:
-
-```json
-{
-  "scripts": {
-    "i": "./install-with-types.sh"
-  }
-}
-```
-
-Then install packages like this:
-
-```sh
-npm run i <pkg name>
-
-# Or with Yarn:
-yarn i <pkg name>
-```
-
-## Typings packages
-
-TypeSync will add typings for packages that:
-
-- have a `@types/package` available
-- don't already provide typings internally (the `typings` and `types` field in `package.json`)
-
-TypeSync will try to respect SemVer parity for the code and typings packages, and will fall back to the latest available typings package.
-
-When writing the typings package version to `package.json`, the `~` SemVer range is used. This is because typings published via [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped#how-do-definitely-typed-package-versions-relate-to-versions-of-the-corresponding-library) align typings versions with library versions using major and minor only.
-
-For example, if you depend on `react@^16.14.0`, then TypeSync will only look for typings packages that match `16.14.*`.
-
-## Monorepos
-
-TypeSync added support for monorepos in v0.4.0. It will look at `packages`/`workspaces` globs in `package.json` and sync every matching file in one fell swoop.
-
-## Why?
-
-Installing typings manually sucks. Flow has `flow-typed` which installs type definitions by looking at a `package.json`, which would be cool to have for TypeScript. Now we do!
-
-## Changelog
-
-See [CHANGELOG.md](/CHANGELOG.md)
-
-## Author
-
-Jeff Hansen - [@Jeffijoe](https://twitter.com/jeffijoe)
-
-[cosmiconfig]: https://github.com/davidtheclark/cosmiconfig
+- **Bad version published**: do NOT `npm unpublish` (breaks consumers). Run `npm deprecate '@openrewrite/typesync@<version>' "<reason>"` and release a new version.
+- **Publish failed after `npm version` already committed/tagged**: fix the cause, then re-run `npm run do:publish` manually; push tags with `git push --follow-tags`.
