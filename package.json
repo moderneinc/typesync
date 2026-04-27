@@ -1,6 +1,6 @@
 {
   "name": "@openrewrite/typesync",
-  "version": "0.14.3-moderne.1",
+  "version": "0.14.3-moderne.2",
   "type": "module",
   "description": "Install missing TypeScript typings for your dependencies. (Moderne fork)",
   "engines": {
