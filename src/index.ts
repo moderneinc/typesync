@@ -1,4 +1,5 @@
 export * from './config-service'
 export * from './package-source'
+export * from './npm-config'
 export * from './type-syncer'
 export * from './types'
