@@ -37,6 +37,14 @@ export async function spinWhile<T>(
   text: string,
   fn: () => Promise<T>,
 ): Promise<T> {
+  // Only animate on an interactive terminal. When stdout is redirected (e.g.
+  // captured into a build log), an animated spinner emits a continuous stream
+  // of cursor-movement escape codes; print a single static line instead.
+  if (!process.stdout.isTTY) {
+    console.log(gray` ${text}`)
+    return await fn()
+  }
+
   const spinner = new Spinner({ text: gray` ${text}`, symbolFormatter: blue })
   spinner.start()
 
