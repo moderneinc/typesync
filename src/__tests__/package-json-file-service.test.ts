@@ -1,4 +1,7 @@
-import { createPackageJSONFileService } from '../package-json-file-service'
+import {
+  createPackageJSONFileService,
+  createReadOnlyPackageJSONService,
+} from '../package-json-file-service'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fsp from 'node:fs/promises'
@@ -74,6 +77,26 @@ describe('package json file service', () => {
         subject.writePackageFile(file, { name: 'test' }),
       ).resolves.toBe(undefined)
     })
+  })
+})
+
+describe('read-only package json file service', () => {
+  const subject = createReadOnlyPackageJSONService()
+
+  it('reads like the regular service', async ({ expect }) => {
+    const result = await subject.readPackageFile('package.json')
+    expect(result.name).toBe('@openrewrite/typesync')
+  })
+
+  it('refuses to write and never touches the file', async ({ expect }) => {
+    const file = await writeFixture()
+    const before = await fsp.readFile(file, 'utf8')
+    await expect(
+      subject.writePackageFile(file, { name: 'mutated' }),
+    ).rejects.toThrow(/non-mutating/i)
+    const after = await fsp.readFile(file, 'utf8')
+    expect(after).toBe(before)
+    await cleanup(file)
   })
 })
 

@@ -377,6 +377,31 @@ describe('type syncer', () => {
     ).not.toHaveBeenCalled()
   })
 
+  it('computes the full diff with version specifiers without writing when dry', async ({
+    expect,
+  }) => {
+    const { syncer, packageService } = buildSyncer()
+    const result = await syncer.sync('package.json', { dry: true })
+
+    expect(
+      packageService.writePackageFile as WritePackageFileMock,
+    ).not.toHaveBeenCalled()
+
+    const root = result.syncedFiles[0]
+    expect(root.newTypings.length).toBeGreaterThan(0)
+
+    // Every reported typing carries the resolved version specifier the caller
+    // would install, grouped under its owning package.json.
+    const byName = Object.fromEntries(
+      root.newTypings.map((t) => [t.typesPackageName, t.version]),
+    )
+    expect(byName['@types/package1']).toBe('~1.0.0')
+    expect(byName['@types/packageWithOldTypings']).toBe('~2.0.0')
+    expect(root.newTypings.every((t) => typeof t.version === 'string')).toBe(
+      true,
+    )
+  })
+
   it('does not detect diff when already synced', async ({ expect }) => {
     const { syncer } = buildSyncer()
     const { syncedFiles } = await syncer.sync(

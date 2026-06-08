@@ -2,7 +2,87 @@
 
 A fork of [jeffijoe/typesync](https://github.com/jeffijoe/typesync), published to npm as [`@openrewrite/typesync`](https://www.npmjs.com/package/@openrewrite/typesync).
 
-For usage and documentation, see the upstream project.
+For general usage and documentation, see the upstream project.
+
+## Computing missing `@types` without mutating `package.json`
+
+By default the CLI **writes** the missing `@types/*` packages into your
+`package.json` (and workspace manifests), exactly like upstream. This fork also
+exposes the underlying analysis as a **non-mutating** operation: it computes
+which `@types/*` packages are missing — and at which version range — and reports
+them **without touching any file on disk**. The caller can then install them
+however it likes, e.g. additively without dirtying the working tree:
+
+```sh
+npm install --no-save --no-package-lock @types/lodash@~4.17.24
+```
+
+There are two ways to consume the non-mutating analysis. Both run the exact same
+detection (including this fork's `.npmrc` / Artifactory registry support) and
+group the result by the owning `package.json`, so npm/yarn/pnpm workspaces are
+handled.
+
+### As a library
+
+```ts
+import { computeMissingTypes, toMissingTypesReport } from '@openrewrite/typesync'
+
+// Defaults to `package.json` in the cwd. Accepts the same CLI-style flags as the
+// CLI (e.g. `{ ignoredeps: 'dev' }`). Never writes to disk.
+const result = await computeMissingTypes('package.json')
+
+for (const file of result.syncedFiles) {
+  for (const typing of file.newTypings) {
+    // typing.typesPackageName -> '@types/lodash'
+    // typing.codePackageName  -> 'lodash'
+    // typing.version          -> '~4.17.24'  (the resolved range specifier)
+    console.log(file.filePath, typing.typesPackageName, typing.version)
+  }
+}
+
+// `toMissingTypesReport(result)` projects the (internal) sync result into the
+// same stable, documented JSON shape that `--json` emits (see below).
+const report = toMissingTypesReport(result)
+```
+
+`computeMissingTypes` returns the full `ISyncResult` (`syncedFiles`), which
+carries the parsed `package.json` for each manifest in addition to the missing
+typings.
+
+### Via the CLI (`--json`)
+
+For non-Node callers, run the CLI with `--json`. It is non-mutating, prints the
+report as JSON to **stdout** (all human-readable chrome is suppressed), and exits
+non-zero with the error on **stderr** if analysis fails:
+
+```sh
+typesync --json [path/to/package.json]
+```
+
+The output is a stable, documented contract (`IMissingTypesReport`):
+
+```jsonc
+{
+  "syncedFiles": [
+    {
+      "filePath": "package.json",        // owning package.json
+      "package": "my-app",               // its "name", if any
+      "newTypings": [
+        {
+          "typesPackageName": "@types/lodash", // package to install
+          "codePackageName": "lodash",         // package it provides types for
+          "version": "~4.17.24"                // resolved version range specifier
+        }
+      ]
+    }
+    // ...one entry per workspace package.json
+  ]
+}
+```
+
+> The existing default (write to `package.json`) and `--dry` (human-readable
+> preview) behaviors are unchanged; `--json` is an additional, machine-readable,
+> non-mutating mode.
 
 ## Releasing
 

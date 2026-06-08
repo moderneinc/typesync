@@ -13,6 +13,7 @@ import {
   type ISyncOptions,
   type ISyncResult,
   type ISyncedFile,
+  type ISyncedTypeDefinition,
   type ITypeSyncer,
 } from './types'
 import { memoizeAsync, mergeObjects, orderObject, typed, uniq } from './util'
@@ -134,7 +135,7 @@ export function createTypeSyncer(
 
     // This is pushed to in the inner `map`, because packages that have DT-typings
     // *as well* as internal typings should be excluded.
-    const used: ReturnType<typeof getPotentiallyUntypedPackages> = []
+    const used: Array<ISyncedTypeDefinition> = []
     const devDepsToAdd = await Promise.all(
       potentiallyUntypedPackages.map(async (t) => {
         // Fetch the code package from the source.
@@ -175,11 +176,12 @@ export function createTypeSyncer(
           localCodePackage.version,
         )
 
-        const version = closestMatchingTypingsVersion.version
         const semverRangeSpecifier = '~'
-        used.push(t)
+        const version =
+          semverRangeSpecifier + closestMatchingTypingsVersion.version
+        used.push({ ...t, version })
         return {
-          [t.typesPackageName]: semverRangeSpecifier + version,
+          [t.typesPackageName]: version,
         }
       }),
     ).then(mergeObjects)

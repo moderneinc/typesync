@@ -40,3 +40,23 @@ export function createPackageJSONFileService(): IPackageJSONService {
     },
   }
 }
+
+/**
+ * Creates a package.json file service that reads normally but refuses to write.
+ *
+ * Used by the non-mutating library / `--json` paths as a hard guarantee that the
+ * project's working tree is never modified, even if a future change accidentally
+ * takes the write branch.
+ */
+export function createReadOnlyPackageJSONService(): IPackageJSONService {
+  const base = createPackageJSONFileService()
+  return {
+    readPackageFile: base.readPackageFile,
+    // eslint-disable-next-line @typescript-eslint/require-await -- always rejects; async to match the IPackageJSONService signature.
+    writePackageFile: async (filePath) => {
+      throw new Error(
+        `Refusing to write ${filePath}: this typesync invocation is non-mutating.`,
+      )
+    },
+  }
+}
