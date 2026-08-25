@@ -6,6 +6,8 @@ import { parse } from 'semver'
 export interface IPackageVersionInfo {
   version: string
   containsInternalTypings: boolean
+  /** Absolute URL of the version's tarball, as advertised by the registry. */
+  tarball?: string
 }
 
 /**

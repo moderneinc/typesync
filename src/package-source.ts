@@ -74,6 +74,7 @@ export function createPackageSource(
         return {
           version: item.version,
           containsInternalTypings: !!item.types || !!item.typings,
+          tarball: item.dist?.tarball,
         }
       })
 

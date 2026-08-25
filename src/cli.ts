@@ -3,9 +3,11 @@ import { blue, bold, cyan, gray, green, magenta, white } from 'ansis'
 import * as C from './cli-util'
 import { createSyncerContainer } from './container'
 import { computeMissingTypes, toMissingTypesReport } from './library'
+import { installMissingTypes } from './types-installer'
 import type {
   ICLIArguments,
   IPackageTypingDescriptor,
+  ISyncResult,
   ISyncedFile,
   ITypeSyncer,
 } from './types'
@@ -23,11 +25,23 @@ export async function startCli(): Promise<void> {
     return
   }
 
-  // `--json`: non-mutating machine-readable mode. Emit only JSON on stdout so a
-  // caller (e.g. the Moderne CLI) can parse it and install the packages itself.
-  if (flags.json) {
+  // `--json` and `--install` both run the non-mutating analysis. With `--json`, stdout
+  // carries the report and nothing else, so a caller can parse it.
+  const wantsJson = Boolean(flags.json)
+  const wantsInstall = Boolean(flags.install)
+  if (wantsJson || wantsInstall) {
     try {
-      console.log(await computeJsonReport(filePath, flags))
+      const result = await computeMissingTypes(filePath, flags)
+      const installed = wantsInstall
+        ? await installMissingTypes(result.syncedFiles)
+        : []
+      if (wantsJson) {
+        console.log(formatMissingTypesReport(result))
+      } else {
+        C.log(
+          `Installed ${white(String(installed.length))} typings package(s).`,
+        )
+      }
     } catch (err) {
       // Keep stdout pure JSON; report errors on stderr.
       process.stderr.write(`${(err as Error).message}\n`)
@@ -46,18 +60,10 @@ export async function startCli(): Promise<void> {
 }
 
 /**
- * Computes the missing typings without modifying any file and returns the
- * stable {@link toMissingTypesReport} JSON contract as a string. This is what
- * `typesync --json` prints.
- *
- * @param filePath Path to the root `package.json`.
- * @param flags CLI flags (e.g. `ignoredeps`). The compute path is always dry.
+ * Renders the stable {@link toMissingTypesReport} contract as the string `typesync --json`
+ * prints, so the CLI and any caller format it identically.
  */
-export async function computeJsonReport(
-  filePath = 'package.json',
-  flags: ICLIArguments['flags'] = {},
-): Promise<string> {
-  const result = await computeMissingTypes(filePath, flags)
+export function formatMissingTypesReport(result: ISyncResult): string {
   return JSON.stringify(toMissingTypesReport(result), null, 2)
 }
 
@@ -154,6 +160,7 @@ ${blue.bold`typesync`} - adds missing TypeScript definitions to package.json
 Options
   ${magenta.bold`--dry`}                                   dry run, won't save the package.json
   ${magenta.bold`--json`}                                  non-mutating; prints the missing typings as JSON to stdout and won't touch any file
+  ${magenta.bold`--install`}                               installs the missing typings into node_modules, leaving package.json and lock files alone
   ${magenta.bold`--ignoredeps=<deps|dev|peer|optional>`}   ignores dependencies in the specified sections (comma separate for multiple). Example: ${magenta`ignoredeps=dev,peer`}
   ${magenta.bold`--help`}                                  shows this help menu
   `.trim(),

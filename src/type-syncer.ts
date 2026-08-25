@@ -183,7 +183,12 @@ export function createTypeSyncer(
         const semverRangeSpecifier = '~'
         const version =
           semverRangeSpecifier + closestMatchingTypingsVersion.version
-        used.push({ ...t, version })
+        used.push({
+          ...t,
+          version,
+          resolvedVersion: closestMatchingTypingsVersion.version,
+          tarball: closestMatchingTypingsVersion.tarball,
+        })
         return {
           [t.typesPackageName]: version,
         }

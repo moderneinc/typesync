@@ -16,12 +16,14 @@ test('package source', async ({ expect }) => {
   expect(v2).toEqual({
     version: '2.0.0',
     containsInternalTypings: false,
+    tarball: 'https://registry.npmjs.org/awilix/-/awilix-2.0.0.tgz',
   })
 
   const v3 = result.versions.find((x) => x.version === '3.0.0')!
   expect(v3).toEqual({
     version: '3.0.0',
     containsInternalTypings: true,
+    tarball: 'https://registry.npmjs.org/awilix/-/awilix-3.0.0.tgz',
   })
 })
 

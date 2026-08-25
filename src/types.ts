@@ -77,6 +77,13 @@ export interface ISyncedTypeDefinition extends IPackageTypingDescriptor {
    * so a caller can install it additively without typesync editing any file.
    */
   version: string
+  /**
+   * The exact version behind {@link version}'s range, e.g. `1.2.3`, and the tarball to
+   * install it from. Not part of the `--json` contract; `--install` resolves through these
+   * so it does not have to re-query the registry.
+   */
+  resolvedVersion: string
+  tarball?: string
 }
 
 /**
@@ -169,6 +176,17 @@ export interface IMissingTyping {
    * The resolved version range specifier, e.g. `~1.2.3`.
    */
   version: string
+}
+
+/**
+ * A typings package placed into a `node_modules` directory by `--install`.
+ */
+export interface IInstalledTyping {
+  typesPackageName: string
+  /** The exact version installed, e.g. `4.17.25`. */
+  version: string
+  /** Absolute path of the directory it was unpacked into. */
+  directory: string
 }
 
 /**
