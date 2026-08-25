@@ -1,4 +1,6 @@
 export * from './config-service'
+export * from './container'
+export * from './library'
 export * from './package-source'
 export * from './npm-config'
 export * from './type-syncer'

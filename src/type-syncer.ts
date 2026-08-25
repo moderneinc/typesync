@@ -13,6 +13,7 @@ import {
   type ISyncOptions,
   type ISyncResult,
   type ISyncedFile,
+  type ISyncedTypeDefinition,
   type ITypeSyncer,
 } from './types'
 import { memoizeAsync, mergeObjects, orderObject, typed, uniq } from './util'
@@ -134,11 +135,15 @@ export function createTypeSyncer(
 
     // This is pushed to in the inner `map`, because packages that have DT-typings
     // *as well* as internal typings should be excluded.
-    const used: ReturnType<typeof getPotentiallyUntypedPackages> = []
+    const used: Array<ISyncedTypeDefinition> = []
     const devDepsToAdd = await Promise.all(
       potentiallyUntypedPackages.map(async (t) => {
         // Fetch the code package from the source.
         const typePackageInfoPromise = fetchPackageInfo(t.typesPackageName)
+        // Only awaited past the early returns below, so attach a rejection
+        // handler now: an unhandled rejection is fatal and would kill the
+        // process before the caller's error handling runs. The await still throws.
+        typePackageInfoPromise.catch(() => undefined)
         const codePackageInfo = await fetchPackageInfo(t.codePackageName)
 
         // If the code package was not found, there's nothing else to do.
@@ -175,11 +180,12 @@ export function createTypeSyncer(
           localCodePackage.version,
         )
 
-        const version = closestMatchingTypingsVersion.version
         const semverRangeSpecifier = '~'
-        used.push(t)
+        const version =
+          semverRangeSpecifier + closestMatchingTypingsVersion.version
+        used.push({ ...t, version })
         return {
-          [t.typesPackageName]: semverRangeSpecifier + version,
+          [t.typesPackageName]: version,
         }
       }),
     ).then(mergeObjects)
@@ -199,10 +205,28 @@ export function createTypeSyncer(
 
     return {
       filePath,
-      newTypings: used,
+      // `used` is filled in registry-response order, which varies run to run.
+      newTypings: used.sort(byTypesPackageName),
       package: file,
     }
   }
+}
+
+/**
+ * Code-unit comparison, matching how `orderObject` sorts the `devDependencies`
+ * written to disk. `localeCompare` would vary with the host locale.
+ */
+function byTypesPackageName(
+  a: ISyncedTypeDefinition,
+  b: ISyncedTypeDefinition,
+): number {
+  // Two code packages only share a typings package via a name collision such as
+  // `@koa/router` and `koa__router`, so this arm is unreachable in practice.
+  /* v8 ignore next 3 */
+  if (a.typesPackageName === b.typesPackageName) {
+    return 0
+  }
+  return a.typesPackageName < b.typesPackageName ? -1 : 1
 }
 
 /**
