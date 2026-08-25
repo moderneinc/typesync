@@ -96,6 +96,9 @@ Releases are published to npm **locally**, not from CI. You need:
 - npm account that is a member of the `@openrewrite` org with publish rights
 - `npm login` completed in your shell (run `npm whoami` to verify)
 - A clean working tree on `master`, up to date with `origin/master`
+- Node `^22.18.0 || >=24.11.0` — required by the `tsdown` build toolchain. It
+  does not constrain consumers, who run against the package's own `engines`
+  range (`^18.20.0 || ^20.10.0 || >=22.0.0`).
 
 ### Versioning
 
