@@ -77,7 +77,17 @@ interface ITestPackageFile extends IPackageFile {
   workspaces?: IWorkspacesArray
 }
 
-function buildSyncer() {
+/**
+ * @param fetchDelay Milliseconds to stall a package's registry lookup, so a
+ *   test can control the order in which lookups settle.
+ */
+function buildSyncer({
+  fetchDelay = () => 0,
+  fetchFails = () => false,
+}: {
+  fetchDelay?: (name: string) => number
+  fetchFails?: (name: string) => boolean
+} = {}) {
   const rootPackageFile: ITestPackageFile = {
     name: 'consumer',
     dependencies: {
@@ -206,6 +216,15 @@ function buildSyncer() {
 
   const packageSource: IPackageSource = {
     fetch: async (name) => {
+      const delay = fetchDelay(name)
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+
+      if (fetchFails(name)) {
+        throw new Error(`connect ECONNREFUSED fetching ${name}`)
+      }
+
       const found = descriptors.find(
         (t) => t.codePackageName === name || t.typesPackageName === name,
       )
@@ -399,6 +418,49 @@ describe('type syncer', () => {
     expect(byName['@types/packageWithOldTypings']).toBe('~2.0.0')
     expect(root.newTypings.every((t) => typeof t.version === 'string')).toBe(
       true,
+    )
+  })
+
+  it('reports new typings sorted by typings package name', async ({
+    expect,
+  }) => {
+    // Settle the lookups in reverse alphabetical order, so reporting them in
+    // completion order would produce exactly the wrong answer.
+    const delaysByPackage: Record<string, number> = {
+      packageWithOldTypings: 5,
+      package9: 10,
+      package8: 15,
+      package5: 20,
+      package3: 25,
+      package1: 30,
+      '@myorg/package7': 35,
+    }
+    const { syncer } = buildSyncer({
+      fetchDelay: (name) => delaysByPackage[name] ?? 0,
+    })
+
+    const { syncedFiles } = await syncer.sync('package.json', { dry: true })
+
+    expect(syncedFiles[0].newTypings.map((t) => t.typesPackageName)).toEqual([
+      '@types/myorg__package7',
+      '@types/package1',
+      '@types/package3',
+      '@types/package5',
+      '@types/package8',
+      '@types/package9',
+      '@types/packageWithOldTypings',
+    ])
+  })
+
+  it('surfaces a failed typings lookup rather than skipping the package', async ({
+    expect,
+  }) => {
+    const { syncer } = buildSyncer({
+      fetchFails: (name) => name === '@types/package1',
+    })
+
+    await expect(syncer.sync('package.json', { dry: true })).rejects.toThrow(
+      /@types\/package1/,
     )
   })
 

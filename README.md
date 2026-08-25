@@ -17,10 +17,15 @@ however it likes, e.g. additively without dirtying the working tree:
 npm install --no-save --no-package-lock @types/lodash@~4.17.24
 ```
 
-There are two ways to consume the non-mutating analysis. Both run the exact same
-detection (including this fork's `.npmrc` / Artifactory registry support) and
-group the result by the owning `package.json`, so npm/yarn/pnpm workspaces are
-handled.
+There are two ways to consume the non-mutating analysis. Both run the same
+detection as the default path and group the result by the owning `package.json`,
+so npm/yarn/pnpm workspaces are handled.
+
+> **Run typesync with the working directory set to the project.** This fork
+> resolves the registry, auth tokens and proxy settings from `.npmrc` by walking
+> up from `process.cwd()`, not from the directory of the `package.json` passed
+> in. Called from elsewhere, it misses a private (e.g. Artifactory) registry and
+> silently resolves versions against the public one instead.
 
 ### As a library
 
@@ -67,7 +72,7 @@ The output is a stable, documented contract (`IMissingTypesReport`):
     {
       "filePath": "package.json",        // owning package.json
       "package": "my-app",               // its "name", if any
-      "newTypings": [
+      "newTypings": [                      // ordered by typesPackageName
         {
           "typesPackageName": "@types/lodash", // package to install
           "codePackageName": "lodash",         // package it provides types for

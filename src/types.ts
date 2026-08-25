@@ -146,7 +146,8 @@ export interface IMissingTypesFile {
    */
   package?: string
   /**
-   * The `@types/*` packages that are missing for this manifest.
+   * The `@types/*` packages that are missing for this manifest, ordered by
+   * `typesPackageName` so repeated runs compare equal.
    */
   newTypings: Array<IMissingTyping>
 }

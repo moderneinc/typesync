@@ -17,6 +17,8 @@ vi.mock('npm-registry-fetch', () => {
   const REGISTRY: Record<string, unknown> = {
     lodash: mk('lodash', '4.17.0'),
     '@types/lodash': mk('@types/lodash', '4.17.0'),
+    express: mk('express', '4.18.0'),
+    '@types/express': mk('@types/express', '4.18.0'),
     'left-pad': mk('left-pad', '1.3.0'),
     '@types/left-pad': mk('@types/left-pad', '1.3.0'),
   }
@@ -47,8 +49,10 @@ afterAll(async () => {
 })
 
 /**
- * Creates a temp project with a root manifest depending on `lodash` and a
- * `packages/foo` workspace depending on `left-pad`, neither of which ships types.
+ * Creates a temp project with a root manifest depending on `lodash` and
+ * `express` and a `packages/foo` workspace depending on `left-pad`, none of
+ * which ship types. The root deps are declared in an order the report is not
+ * allowed to preserve, so the assertions below pin the sorted order.
  */
 async function makeProject(): Promise<{
   rootPath: string
@@ -64,7 +68,7 @@ async function makeProject(): Promise<{
     JSON.stringify(
       {
         name: 'consumer',
-        dependencies: { lodash: '^4.17.0' },
+        dependencies: { lodash: '^4.17.0', express: '^4.18.0' },
         workspaces: ['packages/*'],
       },
       null,
@@ -104,6 +108,11 @@ describe('computeMissingTypes', () => {
     const root = report.syncedFiles.find((f) => f.filePath === rootPath)!
     expect(root.package).toBe('consumer')
     expect(root.newTypings).toEqual([
+      {
+        typesPackageName: '@types/express',
+        codePackageName: 'express',
+        version: '~4.18.0',
+      },
       {
         typesPackageName: '@types/lodash',
         codePackageName: 'lodash',
