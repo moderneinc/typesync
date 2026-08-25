@@ -89,6 +89,38 @@ The output is a stable, documented contract (`IMissingTypesReport`):
 > preview) behaviors are unchanged; `--json` is an additional, machine-readable,
 > non-mutating mode.
 
+## Installing the missing `@types` without mutating `package.json`
+
+`--install` puts the missing typings on disk — into the `node_modules/@types/` of
+whichever `package.json` is missing them, so workspaces land in the right place —
+while leaving `package.json` and every lock file untouched:
+
+```sh
+typesync --install [path/to/package.json]          # install
+typesync --json --install [path/to/package.json]   # install, and report what was missing
+```
+
+Packages are unpacked straight from their registry tarballs rather than added via a
+package manager, because `pnpm add` and Yarn Berry's `yarn add` write to `package.json`
+unconditionally. A typings package already present is left alone, so repeated runs are
+cheap. Registry, auth and proxy settings come from `.npmrc` exactly as elsewhere.
+
+Run it *after* the project's own install: `npm ci` and `pnpm install --frozen-lockfile`
+remove `node_modules` before populating it.
+
+Yarn Plug'n'Play resolves from `.pnp.cjs` with no `node_modules` directory, so there is
+nowhere for `--install` to put anything.
+
+The same operation is available as a library:
+
+```ts
+import { computeMissingTypes, installMissingTypes } from '@openrewrite/typesync'
+
+const result = await computeMissingTypes('package.json')
+const installed = await installMissingTypes(result.syncedFiles)
+// installed -> [{ typesPackageName: '@types/lodash', version: '4.17.25', directory: '...' }]
+```
+
 ## Releasing
 
 Releases are published to npm **locally**, not from CI. You need:

@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import * as fsp from 'node:fs/promises'
 import { afterAll, describe, it, vi } from 'vitest'
 import { computeMissingTypes, toMissingTypesReport } from '../library'
-import { computeJsonReport } from '../cli'
+import { formatMissingTypesReport } from '../cli'
 import type { IMissingTypesReport } from '../types'
 
 // Mock the registry so the test is hermetic (no network). The package source
@@ -137,7 +137,7 @@ describe('computeMissingTypes', () => {
     const { rootPath } = await makeProject()
     const rootBefore = await fsp.readFile(rootPath, 'utf8')
 
-    const json = await computeJsonReport(rootPath)
+    const json = formatMissingTypesReport(await computeMissingTypes(rootPath))
 
     // Output is valid JSON matching the documented report contract...
     const parsed = JSON.parse(json) as IMissingTypesReport
