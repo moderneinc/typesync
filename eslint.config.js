@@ -14,7 +14,10 @@ export default tseslint.config(
     files: [`src/*.${extensions}`, `bin/*`, `*.${extensions}`],
   },
   {
-    ignores: [`dist/`, 'coverage/'],
+    // `.worktrees/` holds checkouts of this same repo, whose sources belong to
+    // their own tsconfig. Git hides them via `.git/info/exclude`, which is local
+    // and uncommitted, so eslint has to be told separately.
+    ignores: [`dist/`, 'coverage/', '.worktrees/'],
   },
   {
     languageOptions: {

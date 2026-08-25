@@ -31,7 +31,7 @@
     "build:watch": "tsdown --watch",
     "run-cli": "npm run build -- --silent && node bin/typesync.mjs",
     "run-cli:dry": "npm run run-cli -- --dry",
-    "do:publish": "npm run lint && npm run test && npm run build && npm publish --tag latest",
+    "do:publish": "npm run build && npm run lint && npm run test && npm publish --tag latest",
     "release:patch": "npm version patch && npm run do:publish && git push --follow-tags",
     "release:minor": "npm version minor && npm run do:publish && git push --follow-tags",
     "release:prerelease": "npm version prerelease && npm run do:publish && git push --follow-tags"
