@@ -119,3 +119,127 @@ test('project .npmrc overrides user .npmrc', async ({ expect }) => {
     expect(cfg.registry).toBe('https://project/')
   })
 })
+
+const CERT_A = [
+  '-----BEGIN CERTIFICATE-----',
+  'AAAAleaf',
+  '-----END CERTIFICATE-----',
+].join('\n')
+const CERT_B = [
+  '-----BEGIN CERTIFICATE-----',
+  'BBBBroot',
+  '-----END CERTIFICATE-----',
+].join('\n')
+
+test('cafile bundle is loaded into ca as one entry per certificate', async ({
+  expect,
+}) => {
+  await withScratch(async (scratch) => {
+    // given
+    await writeFile(join(scratch, 'ca.pem'), `${CERT_A}\n${CERT_B}\n`)
+    await writeFile(join(scratch, '.npmrc'), 'cafile=ca.pem\n')
+
+    // when
+    const cfg = await loadNpmConfig(scratch, {}, scratch)
+
+    // then
+    expect(cfg.cafile).toBeUndefined()
+    expect(Array.isArray(cfg.ca)).toBe(true)
+    const ca = cfg.ca as Array<string>
+    expect(ca).toHaveLength(2)
+    expect(ca[0]).toContain('AAAAleaf')
+    expect(ca[0].trimEnd().endsWith('-----END CERTIFICATE-----')).toBe(true)
+    expect(ca[1]).toContain('BBBBroot')
+  })
+})
+
+test('directly set ca is left untouched and cafile is not consulted', async ({
+  expect,
+}) => {
+  await withScratch(async (scratch) => {
+    // given
+    await writeFile(
+      join(scratch, '.npmrc'),
+      ['ca=inline-cert', 'cafile=does-not-exist.pem', ''].join('\n'),
+    )
+
+    // when
+    const cfg = await loadNpmConfig(scratch, {}, scratch)
+
+    // then
+    expect(cfg.ca).toBe('inline-cert')
+  })
+})
+
+test('strict-ssl=false from .npmrc maps to strictSSL false', async ({
+  expect,
+}) => {
+  await withScratch(async (scratch) => {
+    // given
+    await writeFile(join(scratch, '.npmrc'), 'strict-ssl=false\n')
+
+    // when
+    const cfg = await loadNpmConfig(scratch, {}, scratch)
+
+    // then
+    expect(cfg.strictSSL).toBe(false)
+    expect(cfg['strict-ssl']).toBeUndefined()
+  })
+})
+
+test('npm_config_strict_ssl=false from env maps to strictSSL false', async ({
+  expect,
+}) => {
+  await withScratch(async (scratch) => {
+    // given/when
+    const cfg = await loadNpmConfig(
+      scratch,
+      { npm_config_strict_ssl: 'false' },
+      scratch,
+    )
+
+    // then
+    expect(cfg.strictSSL).toBe(false)
+    expect(cfg['strict-ssl']).toBeUndefined()
+  })
+})
+
+test('auth, scoped registry and registry keys pass through verbatim', async ({
+  expect,
+}) => {
+  await withScratch(async (scratch) => {
+    // given
+    await writeFile(
+      join(scratch, '.npmrc'),
+      [
+        'registry=https://localhost:4873/',
+        '//localhost:4873/:_authToken=tok',
+        '@acme:registry=https://acme.example/',
+        '',
+      ].join('\n'),
+    )
+
+    // when
+    const cfg = await loadNpmConfig(scratch, {}, scratch)
+
+    // then
+    expect(cfg.registry).toBe('https://localhost:4873/')
+    expect(cfg['//localhost:4873/:_authToken']).toBe('tok')
+    expect(cfg['@acme:registry']).toBe('https://acme.example/')
+  })
+})
+
+test('missing/unreadable cafile does not throw and leaves ca unset', async ({
+  expect,
+}) => {
+  await withScratch(async (scratch) => {
+    // given
+    await writeFile(join(scratch, '.npmrc'), 'cafile=nope.pem\n')
+
+    // when
+    const cfg = await loadNpmConfig(scratch, {}, scratch)
+
+    // then
+    expect(cfg.ca).toBeUndefined()
+  })
+})
