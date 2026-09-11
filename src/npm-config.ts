@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join, dirname, resolve } from 'node:path'
+import { join, dirname, resolve, isAbsolute } from 'node:path'
 import { parse as parseIni } from 'ini'
 
 /**
@@ -11,10 +11,13 @@ import { parse as parseIni } from 'ini'
  * - `<@scope>:registry`
  * - `//<host>/:_authToken`, `//<host>/:_auth`, `//<host>/:username`,
  *   `//<host>/:_password`
- * - `cafile`, `ca`, `cert`, `key`
+ * - `ca`, `cert`, `key`
  * - `strictSSL`
- * - `proxy`, `httpsProxy`, `noproxy`
+ * - `proxy`, `httpsProxy`, `noProxy`
  * - `userAgent`, `maxSockets`, `timeout`
+ *
+ * It does *not* read `cafile` (a path) or kebab-case aliases like `strict-ssl`;
+ * `normalize()` maps those before the object is handed off.
  */
 export type NpmConfig = Record<string, unknown>
 
@@ -57,6 +60,67 @@ async function findProjectNpmrc(from: string): Promise<string | null> {
   }
 }
 
+const RENAME: Record<string, string> = {
+  'strict-ssl': 'strictSSL',
+  'always-auth': 'alwaysAuth',
+  'fetch-retries': 'fetchRetries',
+  'fetch-retry-factor': 'fetchRetryFactor',
+  'fetch-retry-mintimeout': 'fetchRetryMintimeout',
+  'fetch-retry-maxtimeout': 'fetchRetryMaxtimeout',
+  'https-proxy': 'httpsProxy',
+  noproxy: 'noProxy',
+  'local-address': 'localAddress',
+  'max-sockets': 'maxSockets',
+  'user-agent': 'userAgent',
+}
+
+const BOOLEAN_OPTS = new Set(['strictSSL', 'alwaysAuth'])
+
+function toBool(v: unknown): unknown {
+  if (typeof v === 'boolean') return v
+  if (v === 'true') return true
+  if (v === 'false') return false
+  return v
+}
+
+// A cafile may bundle several certs (leaf → intermediate → root). Node's `ca`
+// option honors only the first PEM of a single string, so split into one entry
+// per certificate as `@npmcli/config` does.
+function splitPemBundle(bundle: string): Array<string> {
+  const delim = '-----END CERTIFICATE-----'
+  return bundle
+    .split(delim)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map((s) => `${s}\n${delim}\n`)
+}
+
+async function normalize(config: NpmConfig, cwd: string): Promise<NpmConfig> {
+  const out: NpmConfig = { ...config }
+
+  for (const [from, to] of Object.entries(RENAME)) {
+    if (from in out && !(to in out)) {
+      out[to] = out[from]
+      delete out[from]
+    }
+  }
+  for (const key of BOOLEAN_OPTS) {
+    if (key in out) out[key] = toBool(out[key])
+  }
+
+  if (typeof out.cafile === 'string' && out.ca === undefined) {
+    const path = isAbsolute(out.cafile) ? out.cafile : resolve(cwd, out.cafile)
+    try {
+      out.ca = splitPemBundle(await readFile(path, 'utf-8'))
+      delete out.cafile
+    } catch {
+      /* missing/unreadable cafile: leave `ca` unset, same as npm */
+    }
+  }
+
+  return out
+}
+
 /**
  * Loads npm configuration from `.npmrc` files and `npm_config_*` env vars,
  * merged in npm's precedence order (env > project > user). The resulting
@@ -76,5 +140,5 @@ export async function loadNpmConfig(
     ? await readIniIfExists(projectNpmrcPath)
     : {}
   const envCfg = readEnvConfig(env)
-  return { ...userNpmrc, ...projectNpmrc, ...envCfg }
+  return await normalize({ ...userNpmrc, ...projectNpmrc, ...envCfg }, cwd)
 }
